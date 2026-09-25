@@ -26,11 +26,12 @@ jobs:
         run: |
           git clone --depth=1 https://github.com/LineageOS/android_kernel_xiaomi_mt6768.git -b lineage-23.2 kernel
 
-      - name: Patch mt6768_defconfig (Enable KALLSYMS)
+      - name: Patch mt6768_defconfig (Enable KALLSYMS & KPROBES)
         run: |
           CONFIG_FILE="kernel/arch/arm64/configs/vendor/mt6768_defconfig"
           echo "CONFIG_KALLSYMS=y" >> $CONFIG_FILE
           echo "CONFIG_KALLSYMS_ALL=y" >> $CONFIG_FILE
+          echo "CONFIG_KPROBES=y" >> $CONFIG_FILE
           echo "Конфиг успешно пропатчен."
 
       - name: Download Proton-Clang Toolchain
