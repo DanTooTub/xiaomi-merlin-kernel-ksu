@@ -39,10 +39,12 @@ jobs:
         run: |
           git clone --depth=1 https://github.com/kdrag0n/proton-clang.git clang
 
+      - name: Add Clang to PATH
+        run: echo "\(GITHUB_WORKSPACE/clang/bin" >>\)GITHUB_PATH
+
       - name: Build Kernel
         run: |
           cd kernel
-          export PATH="\(GITHUB_WORKSPACE/clang/bin:\)PATH"
           export ARCH=arm64
           export SUBARCH=arm64
           export CC=clang
