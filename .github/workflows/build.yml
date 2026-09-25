@@ -52,9 +52,6 @@ jobs:
           make O=out vendor/mt6768_config
           make -j$(nproc --all) O=out
 
-          make O=out vendor/mt6768_config
-          make -j$(nproc --all) O=out
-
       - name: Pack Kernel into AnyKernel3 & boot.img
         run: |
           git clone --depth=1 https://github.com/osm0sis/AnyKernel3.git AnyKernel3
