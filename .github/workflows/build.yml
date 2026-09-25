@@ -1,0 +1,86 @@
+name: Build LineageOS MT6768 Kernel
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Free Disk Space
+        uses: easimon/maximize-build-space@v10
+        with:
+          root-reserve-mb: 8192
+          swap-size-mb: 1024
+          remove-dotnet: 'true'
+          remove-android: 'true'
+          remove-haskell: 'true'
+
+      - name: Install Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc bison flex libssl-dev libncurses5-dev libelf-dev ccache zip curl git python3 mkbootimg
+
+      - name: Clone Kernel Source
+        run: |
+          git clone --depth=1 https://github.com/LineageOS/android_kernel_xiaomi_mt6768.git -b lineage-20.0 kernel
+
+      - name: Patch mt6768_config (Enable KALLSYMS)
+        run: |
+          CONFIG_FILE="kernel/arch/arm64/configs/vendor/mt6768_config"
+          echo "" >> $CONFIG_FILE
+          echo "# APatch / KALLSYMS" >> $CONFIG_FILE
+          echo "CONFIG_KALLSYMS=y" >> $CONFIG_FILE
+          echo "CONFIG_KALLSYMS_ALL=y" >> $CONFIG_FILE
+          echo "Конфиг успешно пропатчен."
+
+      - name: Download Proton-Clang Toolchain
+        run: |
+          git clone --depth=1 https://github.com/kdrag0n/proton-clang.git clang
+
+      - name: Build Kernel
+        run: |
+          cd kernel
+          export PATH="\(GITHUB_WORKSPACE/clang/bin:\)PATH"
+          export ARCH=arm64
+          export SUBARCH=arm64
+          export CC=clang
+          export CROSS_COMPILE=aarch64-linux-gnu-
+          export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+
+          make O=out vendor/mt6768_config
+          make -j$(nproc --all) O=out
+
+      - name: Pack Kernel into AnyKernel3 & boot.img
+        run: |
+          git clone --depth=1 https://github.com/osm0sis/AnyKernel3.git AnyKernel3
+          
+          # Находим скомпилированное ядро
+          if [ -f "kernel/out/arch/arm64/boot/Image.gz-dtb" ]; then
+            KERNEL_FILE="kernel/out/arch/arm64/boot/Image.gz-dtb"
+          elif [ -f "kernel/out/arch/arm64/boot/Image.gz" ]; then
+            KERNEL_FILE="kernel/out/arch/arm64/boot/Image.gz"
+          else
+            KERNEL_FILE="kernel/out/arch/arm64/boot/Image"
+          fi
+
+          cp $KERNEL_FILE AnyKernel3/Image.gz
+          
+          # Корректируем конфиг AnyKernel3 под MT6768
+          cd AnyKernel3
+          sed -i 's/BLOCK=.*/BLOCK=\/dev\/block\/by-name\/boot;/g' anykernel.sh
+          sed -i 's/IS_SLOT_DEVICE=.*/IS_SLOT_DEVICE=0;/g' anykernel.sh
+          zip -r9 ../AnyKernel3-MT6768-KALLSYMS.zip * -x .git README.md
+          cd ..
+
+          # Создаем минимальный boot.img для fastboot
+          mkbootimg --kernel $KERNEL_FILE --base 0x40000000 --pagesize 2048 -o boot-mt6768-kallsyms.img
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: MT6768-Kernel-KALLSYMS
+          path: |
+            AnyKernel3-MT6768-KALLSYMS.zip
+            boot-mt6768-kallsyms.img
